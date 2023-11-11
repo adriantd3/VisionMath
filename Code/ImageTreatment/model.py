@@ -2,6 +2,8 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import matplotlib
+from scipy import signal
+
 matplotlib.rcParams['figure.figsize'] = (16.0, 8.0)
 
 rSize = 28
