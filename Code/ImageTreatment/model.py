@@ -18,7 +18,7 @@ def generate_dataset(class_character):
     count = 0
     for number in range(0,17):
         #Read image and invert colors
-        image = cv2.imread(path + 'image_' + str(class_character) + '_' + str(number) + '.jpg', 0)
+        image = cv2.imread(path + 'image_' + str(class_character) + '_' + str(number) + '.png', 0)
         image = cv2.bitwise_not(image)
 
         #Binarize the image. (This is due to using the brush on paint)
@@ -36,16 +36,47 @@ def generate_dataset(class_character):
             #Subtract that bpunding rect to another image
             specific_contour = image[y:y + h, x:x + w]
 
-            #Resize the image to 24x24 in order to create a 2 pixel border on each axis, that way is 28x28
-            small_image = cv2.resize(specific_contour, (rSize-4, cSize-4))
-            #Threshold the image due to the resize algorithm
-            _, small_image = cv2.threshold(small_image, 10, 255, cv2.THRESH_BINARY)
-            small_image_pad = cv2.copyMakeBorder(small_image, 2, 2, 2, 2, cv2.BORDER_CONSTANT, value=0)
+            res_image = fit_contour(specific_contour)
 
             #Save image on path
-            cv2.imwrite(path + 'img_' + str(class_character) + '_' + str(count) + '.jpg', small_image_pad)
+            cv2.imwrite(path + 'img_' + str(class_character) + '_' + str(count) + '.jpg', res_image)
 
             count += 1
+
+#Given an rectangle contour, it returns the 28x28 resized version of the template.
+def fit_contour(contour_input):
+
+    contour = np.copy(contour_input)
+    (h,w) = contour.shape
+
+    aspect_ratio = w / h
+
+    # I use the aspect ratio to adjust the imagen in order to fit it in a 24x24 image.
+    scaled_w = int(min(24, 24 * aspect_ratio))
+    scaled_h = int(min(24, 24 / aspect_ratio))
+
+    resized_contour = cv2.resize(contour, (scaled_w, scaled_h))
+    small_image = np.zeros((24, 24))
+
+    #Calculate the free rows/columns in the image
+    free_space = int((24 - min(scaled_w, scaled_h)))
+    #Left-Bottom offset
+    lb_offset = int(free_space / 2)
+    #Right-Top offset
+    rt_offset = free_space - lb_offset
+
+    #Depending on the longest axis, we will use verical or horizontal offset
+    #Designed to work on square contours too
+    if scaled_w == 24:
+        small_image[lb_offset:(24 - rt_offset)][:] = resized_contour
+    else:
+        small_image[:][lb_offset:(24 - rt_offset)] = resized_contour
+
+    # Threshold the image due to the resize algorithm
+    _, small_image = cv2.threshold(small_image, 10, 255, cv2.THRESH_BINARY)
+    small_image_pad = cv2.copyMakeBorder(small_image, 2, 2, 2, 2, cv2.BORDER_CONSTANT, value=0)
+
+    return small_image_pad
 
 def compute_weights():
     dataset = np.zeros((rSize * cSize, 500, 14))
@@ -83,4 +114,7 @@ def load_weights():
         weights_dataset = np.load('computed_weights.npy')
     except FileNotFoundError:
         print('Error: EL ARCHIVO NO SE HA ENCONTRADO')
+
+
+generate_dataset(12)
 

@@ -84,7 +84,7 @@ def binarize_em(image,it):
 
     return binarized
 
-#Bubble-Sort algorithm that sorts the contours from LEFT- RIGHT
+#Bubble-Sort algorithm that sorts the contours from LEFT TO RIGHT
 def sort_contours(contours):
     n = len(contours)
     swapped = False
