@@ -3,13 +3,16 @@ import cv2
 import matplotlib.pyplot as plt
 import matplotlib
 from scipy import signal
+import clasiffication
 import math
+
 
 def gaussian_bell1D(x, sigma):
     base = 1 / (sigma * np.sqrt(2 * np.pi))
     exp = np.exp(-(x * x) / (2 * (sigma * sigma)))
 
     return base * exp
+
 
 def gaussian_filter(image, w_kernel, sigma):
     # Create kernel using associative property
@@ -23,6 +26,7 @@ def gaussian_filter(image, w_kernel, sigma):
     # Convolve image and kernel
     smoothed_img = cv2.filter2D(image, cv2.CV_8U, kernel)
     return smoothed_img
+
 
 def binarize_kmeans(image, it):
     # Set random seed for centroids
@@ -55,7 +59,8 @@ def binarize_kmeans(image, it):
 
     return binarized
 
-def binarize_em(image,it):
+
+def binarize_em(image, it):
     cv2.setRNGSeed(5)
 
     # Define parameters
@@ -84,7 +89,8 @@ def binarize_em(image,it):
 
     return binarized
 
-#Bubble-Sort algorithm that sorts the contours from LEFT TO RIGHT
+
+# Bubble-Sort algorithm that sorts the contours from LEFT TO RIGHT
 def sort_contours(contours):
     n = len(contours)
     swapped = False
@@ -96,49 +102,99 @@ def sort_contours(contours):
         if not swapped:
             return
 
-image = cv2.imread('../../images/test4.jpeg',-1)
+
+def non_maxima_supression_contours(contours):
+    n = len(contours)
+    res_contours = []
+    for ((x, y, w, h), cnt) in contours_ordered:
+        if w > 20 or h > 20:
+            res_contours.append(((x, y, w, h), cnt))
+    return res_contours
+
+
+# Draws the bounding rect and order of contours of the input image.
+def draw_contours(binary_image, contours_sorted):
+    image_drawn = np.copy(binary_image)
+    image_drawn = cv2.cvtColor(image_drawn, cv2.COLOR_GRAY2RGB)
+
+    count = 1
+    for ((x, y, w, h), cnt) in contours_ordered:
+        image_drawn = cv2.putText(image_drawn, str(count), (x - 2, y - 10), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                                  fontScale=2, color=(0, 0, 255), thickness=4)
+        image_drawn = cv2.rectangle(image_drawn, (x - 1, y - 1), (x + w, y + h), (0, 255, 0), 3)
+        count += 1
+
+    return image_drawn
+
+
+# Classifies the input data and returns the resultant string
+def generate_string(data):
+    n_elements = data[0, 0, :].shape[0]
+    res_string = ''
+    count = 0
+    for i in range(n_elements):
+        # Classify each image
+        # category = clasiffication.classify_input_weights(data[:,:,i])
+        category = clasiffication.classify_input_model(data[:, :, i])
+        # plt.imshow(data[:,:,i],cmap='grey')
+        # plt.show()
+        #cv2.imwrite('../../images/datasets/prueba_' + str(count) + '.jpg', data[:, :, i])
+        #count += 1
+
+        if category == 10:
+            res_string += '+'
+        elif category == 11:
+            res_string += '-'
+        elif category == 12:
+            res_string += '*'
+        else:
+            res_string += str(category)
+
+    return res_string
+
+
+# --------------------------------------- TEST --------------------------------------------------
+# LOAD WEIGHTS VECTOR
+clasiffication.load_weights()
+clasiffication.load_model()
+
+image = cv2.imread('../../images/test4.jpeg', -1)
 image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 image = cv2.bitwise_not(image)
 
-smoothed_image = gaussian_filter(image,4,1)
+plt.imshow(image)
+plt.show()
 
-#clahe = cv2.createCLAHE(clipLimit=2,tileGridSize=(48,48))
-#enhaced_smoothed = clahe.apply(smoothed_image)
+smoothed_image = gaussian_filter(image, 4, 1)
 
+clahe = cv2.createCLAHE(clipLimit=2, tileGridSize=(48, 48))
+enhaced_smoothed = clahe.apply(smoothed_image)
 
-
-#binary_img = binarize_em(enhaced_smoothed,5)
-binary_img = binarize_kmeans(smoothed_image,5)
+# binary_img = binarize_em(enhaced_smoothed,5)
+binary_img = binarize_kmeans(enhaced_smoothed, 5)
 
 contours, _ = cv2.findContours(binary_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
-contours_ordered = [(cv2.boundingRect(cnt),cnt) for cnt in contours]
+contours_ordered = [(cv2.boundingRect(cnt), cnt) for cnt in contours]
+contours_ordered = non_maxima_supression_contours(contours_ordered)
 sort_contours(contours_ordered)
 
-binary_img = cv2.cvtColor(binary_img,cv2.COLOR_GRAY2RGB)
-
-count = 0
-color = (0,0,0)
-for ((x,y,w,h),cnt) in contours_ordered:
-    if count == 0:
-        color = (0,0,255)
-    elif count == 1:
-        color = (0,255,0)
-    elif count == 2:
-        color = (255,0,0)
-    elif count == 3:
-        color = (255,255,0)
-    elif count == 4:
-        color = (0,255,255)
-
-    binary_img = cv2.rectangle(binary_img,(x-1,y-1),(x+w,y+h),color,3)
-    count += 1
-
-
-plt.imshow(binary_img)
+plt.imshow(draw_contours(binary_img, contours_ordered))
 plt.show()
 
+# This array contains the 28x28 images of all the contours of the image
+data = np.zeros((28, 28, len(contours_ordered)))
+count = 0
+for (x, y, w, h), cnt in contours_ordered:
+    # Generates de 28x28 from the 2D array(Bounding Rect of each contour)
+    data[:, :, count] = clasiffication.fit_contour(binary_img[y:y + h, x:x + w])
+    count += 1
 
+###CLASIFY IMAGE
+print(generate_string(data))
 
+debug_image = draw_contours(binary_img, contours_ordered)
 
-
+classified_characters = np.zeros(len(contours_ordered))
+plt.imshow(debug_image)
+# plt.show()
