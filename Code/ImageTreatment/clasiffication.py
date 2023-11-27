@@ -20,7 +20,7 @@ def generate_dataset(class_character):
     path = '../../images/datasets/dataset1/' + str(class_character) + '/'
 
     count = 1
-    for number in range(0, 17):
+    for number in range(0, 12):
         # Read image and invert colors
         image = cv2.imread(path + 'image_' + str(class_character) + '_' + str(number) + '.png', 0)
         image = cv2.bitwise_not(image)
@@ -48,6 +48,42 @@ def generate_dataset(class_character):
 
             count += 1
 
+def generateMoreData(number):
+    path = '../../images/datasets/dataset1/' + str(number) + '/'
+
+    image = cv2.imread(path + 'moreData_' + str(number) + '.jpg')
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    image = cv2.bitwise_not(image)
+
+    # Binarize the image. (This is due to using the brush on paint)
+    _, image = cv2.threshold(image, 30, 255, cv2.THRESH_BINARY)
+
+    plt.imshow(image,cmap='grey')
+    plt.show()
+
+    # Find all contours in the image
+    contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+    print(str(len(contours)) + ' contours in image: ' + str(number))
+
+    count = 501
+    for cnt in contours:
+        # Extract de origin and size of the bounding rectangle
+        x, y, w, h = cv2.boundingRect(cnt)
+
+        #Do not count too small contours
+        if w < 30 or h < 30:
+            continue
+
+        # Subtract that bpunding rect to another image
+        specific_contour = image[y:y + h, x:x + w]
+
+        res_image = fit_contour(specific_contour)
+
+        # Save image on path
+        cv2.imwrite(path + 'img_' + str(number) + '_' + str(count) + '.jpg', res_image)
+        count += 1
+
 
 # Given an rectangle contour, it returns the 28x28 resized version of the template.
 def fit_contour(contour_input):
@@ -62,8 +98,8 @@ def fit_contour(contour_input):
     scaled_h = int(min(window_size, window_size / aspect_ratio))
 
     resized_contour = cv2.resize(contour, (scaled_w, scaled_h), interpolation=cv2.INTER_AREA)
-    plt.imshow(resized_contour, cmap='grey')
-    plt.show()
+    #plt.imshow(resized_contour, cmap='grey')
+    #plt.show()
 
     small_image = np.zeros((window_size, window_size))
 
@@ -85,8 +121,8 @@ def fit_contour(contour_input):
     _, small_image = cv2.threshold(small_image, 20, 255, cv2.THRESH_BINARY)
     small_image_pad = cv2.copyMakeBorder(small_image, 2, 2, 2, 2, cv2.BORDER_CONSTANT, value=0)
 
-    plt.imshow(small_image_pad, cmap='grey')
-    plt.show()
+    #plt.imshow(small_image_pad, cmap='grey')
+    #plt.show()
 
     return small_image_pad
 
@@ -99,9 +135,15 @@ def compute_weights():
         # For each image in the class
         for i in range(1, 501):
             # Read the image
-            path = '../../images/datasets/dataset1/' + str(number) + '/img_' + str(number) + '_' + str(i) + '.jpg'
-            # print(path)
-            image = cv2.imread(path, 0)
+            image = None
+            try:
+                path = '../../images/datasets/dataset1/' + str(number) + '/img_' + str(number) + '_' + str(i) + '.jpg'
+                # print(path)
+                image = cv2.imread(path, 0)
+            except Exception:
+                break
+
+
             # Binarize it
             _, binarized = cv2.threshold(image, 100, 1, cv2.THRESH_BINARY)
             vector_image = binarized.reshape((-1, 1))
@@ -209,9 +251,13 @@ def generate_train_data():
     Y_train = []
 
     for category in range(num_categories):
-        for i in range(1, 501):
-            image = cv2.imread(
-                images_path + 'dataset1/' + str(category) + '/img_' + str(category) + '_' + str(i) + '.jpg')[:,:,0]
+        for i in range(1, 900):
+            image = None
+            try:
+                image = cv2.imread(images_path + 'dataset1/' + str(category) + '/img_' + str(category) + '_' + str(i) + '.jpg')[:,:,0]
+            except Exception:
+                break
+
             _, binarized = cv2.threshold(image, 100, 255, cv2.THRESH_BINARY)
 
             # Añadir la imagen y la categoria al dataset
@@ -232,14 +278,14 @@ def generate_train_data():
 def model_fit(X_train, Y_train):
     model = keras.models.Sequential()
 
-    model.add(keras.layers.Flatten(input_shape=(28,28)))
+    model.add(keras.layers.Flatten(input_shape=(28, 28)))
     model.add(keras.layers.Dense(128,activation='relu'))
-    model.add(keras.layers.Dense(128,activation='relu'))
+    model.add(keras.layers.Dense(64,activation='relu'))
     model.add(keras.layers.Dense(13,activation='softmax'))
 
     model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
-    model.fit(X_train, Y_train, epochs=5)
+    model.fit(X_train, Y_train, epochs=10)
 
     model.save('../model/visionmath.model')
     model.summary()
@@ -261,3 +307,4 @@ def model_fit(X_train, Y_train):
 #image = cv2.bitwise_not(image)
 
 #print(classify_input_model(image))
+#compute_weights()
