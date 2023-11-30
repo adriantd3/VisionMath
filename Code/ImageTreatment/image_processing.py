@@ -60,19 +60,6 @@ def binarize_kmeans(image, it):
     return binarized
 
 
-# Bubble-Sort algorithm that sorts the contours from LEFT TO RIGHT
-def sort_contours(contours, axis):
-    n = len(contours)
-    swapped = False
-    for i in range(n - 1):
-        for j in range(0, n - i - 1):
-            if contours[j, axis] > contours[j + 1, axis]:
-                swapped = True
-                contours[j], contours[j + 1] = contours[j + 1], contours[j]
-        if not swapped:
-            return
-
-
 def non_maxima_supression_contours(contours):
     n = len(contours)
     res_contours = []
@@ -136,78 +123,103 @@ def generate_expression(categories, contours):
     # We must distinguish when a '-' means subtraction or division
     total_lines = np.where(categories == '11')
 
+    avg_height = average_height(categories, contours)
+
     div_index = []
-    div_strings = []
     div_ranges = []
 
     expression = ""
 
-    #Identify the real division symbols
+    # Identify the real division symbols
     for index in total_lines:
         (x_index, y_index, w_index, h_index) = contours[index]
         # Contours list that sorround the symbol in the x axis
-        cont_list = [(x, y, w, h) for x, y, w, h in contours if x + w > x_index and x < x_index + w_index and
-                     (x != x_index and y != y_index)]
-        cont_list = np.array(cont_list)
-        cont_list_copy = np.copy(cont_list)
+        horizontal_cont_list = [(x, y, w, h) for x, y, w, h in contours if
+                                (x + w) > x_index and (x + w) < (x_index + w_index) and
+                                (x != x_index and y != y_index)]
+        horizontal_cont_list = np.array(horizontal_cont_list)
 
-        # Order the cont_list according to the y axis
-        sort_contours(cont_list, axis=1)
+        # Vertically sorted array BOTTOM - UP
+        vertical_const_list = horizontal_cont_list[np.argsort(horizontal_cont_list[:, 1], kind='mergesort')]
 
-        ##HAY QUE CAMBIAR ESTOOOOOOO - EL ARRAY DEBERIA ORDENARSE EN SENTIDO OPUESTO PARA QUE FUNCIONE
+        # Ordenamos veticalmente (Menor a mayor/Arriba abajo). Si el primer elemento cuya altura sea mayor
+        # que la del símbolo (hacemos esto para comprobar el primer contorno mas cercano) no es un '-' quiere decir que
+        # es un simbolo de division
+
+        # Equivalente a sacar el menor valor absoluto de la distancia.
         isDiv = False
-        for (x, y, w, h) in cont_list:
-            elem_index = np.where(contours == (x, y, w, h))
-            if y < y_index and categories[elem_index[0]] != 11:
+        i = 0
+        while not isDiv:
+            _, y, _, h = vertical_const_list[i]
+            if (y + h) > (y_index + h_index) and categories[i] != 11:
                 isDiv = True
-                break
+            i += 1
 
         if isDiv:
             div_index.append(index)
-            min_index = np.where(contours == cont_list_copy[0])
-            max_index = np.where(contours == cont_list_copy[-1])
+            # We take the range of indexes that covers the div symbol
+            min_index = np.where(contours == horizontal_cont_list[0])
+            max_index = np.where(contours == horizontal_cont_list[-1])
 
-            index_list = np.array(range(min_index[0], max_index[0] + 1))
-
-            upper_string = ""
-            lower_string = ""
-
-            for i in index_list:
-                if contours[i, 1] > y:
-                    upper_string += str(categories[i])
-                else:
-                    lower_string += str(categories[i])
-
-            div_string = "(" + upper_string + ")/(" + lower_string + ")"
-
-            div_strings.append(div_string)
             div_ranges.append((min_index[0], max_index[0]))
 
     # Convert to numpy arrays
     div_index = np.array(div_index)
-    div_strings = np.array(div_strings)
     div_ranges = np.array(div_ranges)
 
-    # Evaluate the rest of strings and create the final expression
-    for i in range(len(categories)):
-        inRange = False
+    upper_string = ""
+    lower_string = ""
+
+    # Generate the final string that will be evaluated
+    for i in range(categories.shape[0]):
         # If it is a division symbol, continue
         if np.isin(i, div_index):
             continue
-        # Add the division expression only when the index is the same as the maximum of that range
-        cont = 0
-        for (min_index, max_index) in div_ranges:
+
+        inRange = False
+        isLastIndex = False
+        range = 0
+        while not inRange:
+            # Determine if the index is in any range
+            min_index, max_index = div_ranges[i]
             if min_index <= i <= max_index:
                 inRange = True
                 if i == max_index:
-                    expression += div_strings[cont]
-                break
-            cont += 1
-        #If it is not in any range, it means it is outside a division expression, so simply add it to the final string
-        if not inRange:
+                    isLastIndex = True
+            else:
+                range += 1
+
+        if inRange:
+            if contours[i, 1] > contours[div_index[range], 1]:
+                # If the contour is above the line
+                upper_string += str(categories[i])
+            else:
+                # If the contour is below the line
+                lower_string += str(categories[i])
+            if isLastIndex:
+                # If it is the last element of the range, combine all elements
+                expression += "(" + upper_string + ")/(" + lower_string + ")"
+
+                # Reset the strings
+                upper_string = ""
+                lower_string = ""
+        else:
+            # If it is not part of any range, simply add the number to the string
             expression += str(categories[i])
 
     return expression
+
+
+def average_height(categories, contours):
+    # Calculate the average height of the NUMBERS ONLY contours
+
+    height_list = []
+    for i in range(categories.shape[0]):
+        if categories[i] < 10:
+            height_list.append(contours[i, 3])
+
+    height_list = np.array(height_list)
+    return np.average(height_list)
 
 
 # --------------------------------------- TEST --------------------------------------------------
@@ -216,7 +228,7 @@ clasiffication.load_weights()
 clasiffication.load_model()
 
 # -----------------------IMAGE PREPROCESSING -----------------------------------
-image = cv2.imread('../../images/test11.jpeg', -1)
+image = cv2.imread('../../images/test15.jpeg', -1)
 image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 image = cv2.bitwise_not(image)
 smoothed_image = gaussian_filter(image, 4, 1)
@@ -238,7 +250,14 @@ contours, _ = cv2.findContours(thresh_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_N
 contours_ordered = [cv2.boundingRect(cnt) for cnt in contours]
 contours_ordered = non_maxima_supression_contours(contours_ordered)
 contours_ordered = np.array(contours_ordered)
-sort_contours(contours_ordered, 0)
+
+print(contours_ordered)
+print("---------------------------------")
+
+# Sort the contours from LEFT to RIGHT
+contours_ordered = contours_ordered[np.argsort(contours_ordered[:, 0], kind='mergesort')]
+
+print(contours_ordered)
 
 plt.imshow(draw_contours(thresh_img, contours_ordered))
 plt.show()
@@ -254,11 +273,12 @@ for x, y, w, h in contours_ordered:
 # --------------------------CONTOUR CLASSIFICATION------------------------------------------
 
 res_string, categories = generate_string(data)
+print(res_string)
 
 # Now that we have contours classified we can generate the mathematical expression
 # Now we only have interest
-final_expression = generate_expression(categories,contours_ordered)
-print(final_expression)
+# final_expression = generate_expression(categories,contours_ordered)
+# print(final_expression)
 
 debug_image = draw_contours(thresh_img, contours_ordered)
 

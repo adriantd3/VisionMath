@@ -49,41 +49,87 @@ def generate_dataset(class_character):
             count += 1
 
 def generateMoreData(number):
-    path = '../../images/datasets/dataset1/' + str(number) + '/'
+    num_img = 1
+    has_images = True
+    count = 1
+    while has_images:
+        try:
+            path = '../../images/datasets/dataset1/' + str(number) + '/'
 
-    image = cv2.imread(path + 'moreData_' + str(number) + '.jpg')
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    image = cv2.bitwise_not(image)
+            image = cv2.imread(path + 'moreData_' + str(number) + "_" + str(num_img) + '.jpeg')
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            image = cv2.bitwise_not(image)
 
-    # Binarize the image. (This is due to using the brush on paint)
-    _, image = cv2.threshold(image, 30, 255, cv2.THRESH_BINARY)
+            # Binarize the image. (This is due to using the brush on paint)
+            _, image = cv2.threshold(image, 30, 255, cv2.THRESH_BINARY)
 
-    plt.imshow(image,cmap='grey')
-    plt.show()
+            plt.imshow(image, cmap='grey')
+            plt.show()
 
-    # Find all contours in the image
-    contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            # Find all contours in the image
+            contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
-    print(str(len(contours)) + ' contours in image: ' + str(number))
+            print(str(len(contours)) + ' contours in image: ' + str(number))
 
-    count = 501
-    for cnt in contours:
-        # Extract de origin and size of the bounding rectangle
-        x, y, w, h = cv2.boundingRect(cnt)
+            for cnt in contours:
+                # Extract de origin and size of the bounding rectangle
+                x, y, w, h = cv2.boundingRect(cnt)
 
-        #Do not count too small contours
-        if w < 30 or h < 30:
-            continue
+                # Do not count too small contours
+                if w < 5:
+                    continue
 
-        # Subtract that bpunding rect to another image
-        specific_contour = image[y:y + h, x:x + w]
+                # Subtract that bpunding rect to another image
+                specific_contour = image[y:y + h, x:x + w]
 
-        res_image = fit_contour(specific_contour)
+                res_image = fit_contour(specific_contour)
+                # Save image on path
+                cv2.imwrite(path + 'img_' + str(number) + '_' + str(count) + '.jpg', res_image)
+                count += 1
+        except Exception:
+            has_images = False
+        finally:
+            num_img += 1
 
-        # Save image on path
-        cv2.imwrite(path + 'img_' + str(number) + '_' + str(count) + '.jpg', res_image)
-        count += 1
+def generateMoreDataDebug(number):
+    num_img = 1
+    has_images = True
+    count = 1
+    while has_images:
+        path = '../../images/datasets/dataset1/' + str(number) + '/'
 
+        image = cv2.imread(path + 'moreData_' + str(number) + "_" + str(num_img) + '.jpeg')
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        image = cv2.bitwise_not(image)
+
+        # Binarize the image. (This is due to using the brush on paint)
+        _, image = cv2.threshold(image, 30, 255, cv2.THRESH_BINARY)
+
+        plt.imshow(image, cmap='grey')
+        plt.show()
+
+        # Find all contours in the image
+        contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+        print(str(len(contours)) + ' contours in image: ' + str(number))
+
+        for cnt in contours:
+            # Extract de origin and size of the bounding rectangle
+            x, y, w, h = cv2.boundingRect(cnt)
+
+            # Do not count too small contours
+            if w < 30:
+                continue
+
+            # Subtract that bpunding rect to another image
+            specific_contour = image[y:y + h, x:x + w]
+
+            res_image = fit_contour(specific_contour)
+            #plt.imshow(res_image, cmap='grey')
+            #plt.show()
+            # Save image on path
+            cv2.imwrite(path + 'img_' + str(number) + '_' + str(count) + '.jpg', res_image)
+            count += 1
 
 # Given an rectangle contour, it returns the 28x28 resized version of the template.
 def fit_contour(contour_input):
@@ -96,6 +142,13 @@ def fit_contour(contour_input):
     # I use the aspect ratio to adjust the imagen in order to fit it in a 24x24 image.
     scaled_w = int(min(window_size, window_size * aspect_ratio))
     scaled_h = int(min(window_size, window_size / aspect_ratio))
+
+    if scaled_w == 0:
+        scaled_w = 3
+    if scaled_h == 0:
+        scaled_h = 3
+
+    print(f"w: {w} -- h: {h} -- scaled_w: {scaled_w} -- scaled_h: {scaled_h} --aspect_ratio: {aspect_ratio}")
 
     resized_contour = cv2.resize(contour, (scaled_w, scaled_h), interpolation=cv2.INTER_AREA)
     #plt.imshow(resized_contour, cmap='grey')
@@ -308,3 +361,5 @@ def model_fit(X_train, Y_train):
 
 #print(classify_input_model(image))
 #compute_weights()
+
+
