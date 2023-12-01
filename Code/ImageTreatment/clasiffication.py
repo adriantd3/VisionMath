@@ -281,17 +281,17 @@ def classify_input_weights(image):
     return int(res_categpry)
 
 
-def classify_input_model(image):
+def classify_input_model(image,debug):
     global model
 
     #Adapt the image to (1,28,28) input
     image = np.array([image[:,:]])
 
     print(image.shape)
-
-    plt.imshow(image[0], cmap='grey')
-    plt.title("INPUT")
-    plt.show()
+    if debug:
+        plt.imshow(image[0], cmap='grey')
+        plt.title("INPUT")
+        plt.show()
 
     category = model.predict(image)
 

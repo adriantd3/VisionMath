@@ -6,6 +6,7 @@ from scipy import signal
 import clasiffication
 import math
 
+debug = True
 
 def gaussian_bell1D(x, sigma):
     base = 1 / (sigma * np.sqrt(2 * np.pi))
@@ -84,9 +85,20 @@ def draw_contours(binary_image, contours_sorted):
 
     return image_drawn
 
+def category_toString_conversion(category):
+    #returns the string that corresponds to the given category
+    if category == 10:
+        return '+'
+    elif category == 11:
+        return '-'
+    elif category == 12:
+        return '*'
+    else:
+        return str(category)
 
 # Classifies the input data and returns the resultant string
 def generate_string(data):
+    global debug
     n_elements = data[0, 0, :].shape[0]
     res_string = ''
     count = 0
@@ -96,7 +108,7 @@ def generate_string(data):
     for i in range(n_elements):
         # Classify each image
         # category = clasiffication.classify_input_weights(data[:,:,i])
-        category = clasiffication.classify_input_model(data[:, :, i])
+        category = clasiffication.classify_input_model(data[:, :, i],debug)
         # Insert category in categories array
         categories.append(category)
         # plt.imshow(data[:,:,i],cmap='grey')
@@ -104,14 +116,7 @@ def generate_string(data):
         # cv2.imwrite('../../images/datasets/prueba_' + str(count) + '.jpg', data[:, :, i])
         # count += 1
 
-        if category == 10:
-            res_string += '+'
-        elif category == 11:
-            res_string += '-'
-        elif category == 12:
-            res_string += '*'
-        else:
-            res_string += str(category)
+        res_string += category_toString_conversion(category)
 
     # Convert to numpy array
     categories = np.array(categories)
@@ -121,8 +126,9 @@ def generate_string(data):
 
 def generate_expression(categories, contours):
     # We must distinguish when a '-' means subtraction or division
-    total_lines = np.where(categories == '11')
-
+    print(categories)
+    total_lines = np.where(categories == 11)[0]
+    print(total_lines)
     avg_height = average_height(categories, contours)
 
     div_index = []
@@ -132,15 +138,27 @@ def generate_expression(categories, contours):
 
     # Identify the real division symbols
     for index in total_lines:
-        (x_index, y_index, w_index, h_index) = contours[index]
-        # Contours list that sorround the symbol in the x axis
-        horizontal_cont_list = [(x, y, w, h) for x, y, w, h in contours if
-                                (x + w) > x_index and (x + w) < (x_index + w_index) and
-                                (x != x_index and y != y_index)]
+        [x_index, y_index, w_index, h_index] = contours[index]
+
+        # Contours list that surround the symbol in the x axis
+        horizontal_cont_list = [[x, y, w, h] for x, y, w, h in contours if
+                                ((x < x_index < (x + w)) or (x_index < x < (x_index + w_index)))
+                                and (x != x_index and y != y_index)]
+
         horizontal_cont_list = np.array(horizontal_cont_list)
 
+        #Does not have anything
+        if horizontal_cont_list.shape[0] == 0:
+            continue
+
         # Vertically sorted array BOTTOM - UP
+        print(f"horizontal_cont_list shape = {horizontal_cont_list.shape}")
         vertical_const_list = horizontal_cont_list[np.argsort(horizontal_cont_list[:, 1], kind='mergesort')]
+
+        print(f"VERTICAL CONT LIST FOR INDEX({index})")
+        print(vertical_const_list)
+
+        print(f"INDEX INFO: x_index={x_index} -- y_index={y_index} --- w_index={w_index} --- h_index={h_index}")
 
         # Ordenamos veticalmente (Menor a mayor/Arriba abajo). Si el primer elemento cuya altura sea mayor
         # que la del símbolo (hacemos esto para comprobar el primer contorno mas cercano) no es un '-' quiere decir que
@@ -149,19 +167,29 @@ def generate_expression(categories, contours):
         # Equivalente a sacar el menor valor absoluto de la distancia.
         isDiv = False
         i = 0
-        while not isDiv:
-            _, y, _, h = vertical_const_list[i]
-            if (y + h) > (y_index + h_index) and categories[i] != 11:
-                isDiv = True
+        while not isDiv and i < vertical_const_list.shape[0]:
+            [_, y, _, h] = vertical_const_list[i]
+
+            categorie_index = np.where(np.all(contours == vertical_const_list[i],axis=1))
+            # print(np.where(np.all(contours == vertical_const_list[i],axis=1)))
+            print(f"ITERATION {i} WITH ({vertical_const_list[i]}) AND CATEGORIE = {categories[categorie_index]}")
+            if (y + h) > (y_index + h_index):
+                if categories[categorie_index] != 11:
+                    isDiv = True
+                else:
+                    print(f"INDEX({index}) IS NOT A DIVISION")
+                    break
             i += 1
 
         if isDiv:
             div_index.append(index)
             # We take the range of indexes that covers the div symbol
-            min_index = np.where(contours == horizontal_cont_list[0])
-            max_index = np.where(contours == horizontal_cont_list[-1])
+            min_index = np.where(np.all(contours == horizontal_cont_list[0],axis=1))[0][0]
+            max_index = np.where(np.all(contours == horizontal_cont_list[-1],axis=1))[0][0]
 
-            div_ranges.append((min_index[0], max_index[0]))
+            div_ranges.append([min_index, max_index])
+
+            print(f"Div Detected: index = {index} --- min_index = {min_index} --- max_index = {max_index}")
 
     # Convert to numpy arrays
     div_index = np.array(div_index)
@@ -170,42 +198,45 @@ def generate_expression(categories, contours):
     upper_string = ""
     lower_string = ""
 
+    print("----------- ALL DIVS HAVE BEEN DETECTED - WE CREATE THE EXPRESSION ----------------")
+    print(f"\ndiv_index={div_index}\ndiv_ranges={div_ranges}\n")
+
     # Generate the final string that will be evaluated
-    for i in range(categories.shape[0]):
+    for i in range(0,categories.shape[0]):
         # If it is a division symbol, continue
         if np.isin(i, div_index):
             continue
 
         inRange = False
         isLastIndex = False
-        range = 0
-        while not inRange:
+        range_div = 0
+        while not inRange and range_div < div_ranges.shape[0]:
             # Determine if the index is in any range
-            min_index, max_index = div_ranges[i]
+            min_index, max_index = div_ranges[range_div]
             if min_index <= i <= max_index:
                 inRange = True
                 if i == max_index:
                     isLastIndex = True
             else:
-                range += 1
-
+                range_div += 1
+        print(f"FOR INDEX = {i} -> (inRange={inRange},isLastIndex={isLastIndex},range_div={range_div})")
         if inRange:
-            if contours[i, 1] > contours[div_index[range], 1]:
+            if contours[i, 1] < contours[div_index[range_div], 1]:
                 # If the contour is above the line
-                upper_string += str(categories[i])
+                upper_string += category_toString_conversion(categories[i])
             else:
                 # If the contour is below the line
-                lower_string += str(categories[i])
+                lower_string += category_toString_conversion(categories[i])
             if isLastIndex:
                 # If it is the last element of the range, combine all elements
-                expression += "(" + upper_string + ")/(" + lower_string + ")"
+                expression += "((" + upper_string + ")/(" + lower_string + "))"
 
                 # Reset the strings
                 upper_string = ""
                 lower_string = ""
         else:
             # If it is not part of any range, simply add the number to the string
-            expression += str(categories[i])
+            expression += category_toString_conversion(categories[i])
 
     return expression
 
@@ -228,18 +259,24 @@ clasiffication.load_weights()
 clasiffication.load_model()
 
 # -----------------------IMAGE PREPROCESSING -----------------------------------
-image = cv2.imread('../../images/test15.jpeg', -1)
+image = cv2.imread('../../images/test16.jpeg', -1)
 image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 image = cv2.bitwise_not(image)
 smoothed_image = gaussian_filter(image, 4, 1)
+
+if debug:
+    plt.imshow(smoothed_image, cmap='grey')
+    plt.show()
 
 clahe = cv2.createCLAHE(clipLimit=2, tileGridSize=(48, 48))
 enhaced_smoothed = clahe.apply(smoothed_image)
 
 _, thresh_img = cv2.threshold(enhaced_smoothed, 170, 255, cv2.THRESH_BINARY)
 
-plt.imshow(enhaced_smoothed, cmap='grey')
-plt.show()
+
+if debug:
+    plt.imshow(enhaced_smoothed, cmap='grey')
+    plt.show()
 
 # binary_img = binarize_em(enhaced_smoothed,5)
 # binary_img = binarize_kmeans(smoothed_image, 5)
@@ -259,8 +296,9 @@ contours_ordered = contours_ordered[np.argsort(contours_ordered[:, 0], kind='mer
 
 print(contours_ordered)
 
-plt.imshow(draw_contours(thresh_img, contours_ordered))
-plt.show()
+if True:
+    plt.imshow(draw_contours(thresh_img, contours_ordered))
+    plt.show()
 
 # This array contains the 28x28 images of all the contours in the image
 data = np.zeros((28, 28, len(contours_ordered)))
@@ -277,8 +315,14 @@ print(res_string)
 
 # Now that we have contours classified we can generate the mathematical expression
 # Now we only have interest
-# final_expression = generate_expression(categories,contours_ordered)
-# print(final_expression)
+
+final_expression = generate_expression(categories,contours_ordered)
+print(final_expression)
+try:
+    print(eval(final_expression))
+except Exception:
+    print("ERROR: La operación no es válida")
+
 
 debug_image = draw_contours(thresh_img, contours_ordered)
 
