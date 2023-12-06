@@ -13,7 +13,7 @@ Add your image to the images folder and run visionmath.py
 <p><b>Image contours</b></p>
 <img src="https://github.com/AdrianTorremochaUMA/VisionMath/blob/main/images/testResults/test15_contours.png?raw=true" height=300 width=400>
 <p><b>Model Classification</b></p>
-<img src="https://github.com/AdrianTorremochaUMA/VisionMath/blob/main/images/testResults/test15_classification.png?raw=true" height=100 width=400>
+<img src="https://github.com/AdrianTorremochaUMA/VisionMath/blob/main/images/testResults/test15_classification.png?raw=true" height=150 width=600>
 
 ### Image Output
 <p>EXPRESSION: ((4-2)/(6)) </p>
