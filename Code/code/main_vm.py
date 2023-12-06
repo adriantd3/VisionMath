@@ -1,10 +1,8 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-import matplotlib
 from scipy import signal
 import clasiffication
-import math
 
 debug = False
 
