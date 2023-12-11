@@ -244,6 +244,8 @@ def image_processing(image):
     clahe = cv2.createCLAHE(clipLimit=2, tileGridSize=(48, 48))
     enhanced_smoothed = clahe.apply(smoothed_image)
 
+    # enhanced_smoothed = cv2.equalizeHist(smoothed_image)
+
     _, thresh_img = cv2.threshold(enhanced_smoothed, 170, 255, cv2.THRESH_BINARY)
 
     if debug:
@@ -317,7 +319,7 @@ def main(imagePath, showImages):
     processed_image = image_processing(image)
     data, contours_ordered = contour_extraction_sorting(processed_image)
 
-    print("-------------PREDICTION STAGE-----------------")
+    print("\n-------------PREDICTION STAGE-----------------")
     res_string, categories = generate_string(data)
     print(f"MODEL PREDICTION: {res_string}\n")
 

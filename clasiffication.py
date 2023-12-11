@@ -58,7 +58,7 @@ def generateData(number):
             num_img += 1
 
 
-# Given a rectangle contour, it returns the 28x28 resized version of the template.
+# Given a rectangle contour, it returns the rSize x cSize resized version of the template.
 def fit_contour(contour_input):
     window_size = rSize
     contour = np.copy(contour_input)
@@ -66,7 +66,7 @@ def fit_contour(contour_input):
 
     aspect_ratio = w / h
 
-    # I use the aspect ratio to adjust the imagen in order to fit it in a 24x24 image.
+    # I use the aspect ratio to adjust the imagen in order to fit it in the rSize x cSize image
     scaled_w = int(min(window_size, window_size * aspect_ratio))
     scaled_h = int(min(window_size, window_size / aspect_ratio))
 
@@ -76,8 +76,6 @@ def fit_contour(contour_input):
         scaled_h = 3
 
     resized_contour = cv2.resize(contour, (scaled_w, scaled_h), interpolation=cv2.INTER_AREA)
-    # plt.imshow(resized_contour, cmap='grey')
-    # plt.show()
 
     small_image = np.zeros((window_size, window_size))
 
@@ -141,15 +139,47 @@ def generate_model():
             X_train.append(image)
             Y_train.append(category)
 
-    # Normalize data
     X_train = np.array(X_train)
     Y_train = np.array(Y_train)
 
     # print(X_train.shape)
 
+    # Normalize data
     X_train = keras.utils.normalize(X_train, axis=1)
     # Train model
     model_fit(X_train, Y_train)
+
+
+def generate_y_test(validation_path):
+    file = open(images_path + 'dataset1/validation_data/' + validation_path, 'r')
+    lines = file.readlines()
+
+    Y_test = []
+
+    for line in lines:
+        Y_test.append(int(line))
+
+    Y_test = np.array(Y_test)
+    print(Y_test)
+    np.save(images_path + 'dataset1/validation_data/y_test.npy', Y_test)
+
+
+def generate_x_test():
+    cont = 0
+    X_test = []
+    while True:
+        try:
+            image = cv2.imread(images_path + 'dataset1/validation_data/val_img_' + str(cont) + '.jpg')[:, :,
+                    0]
+        except Exception:
+            break
+
+        X_test.append(image)
+        cont += 1
+
+    X_test = np.array(X_test)
+    print(X_test.shape)
+    np.save(images_path + 'dataset1/validation_data/x_test.npy', X_test)
 
 
 def model_fit(X_train, Y_train):
@@ -162,12 +192,32 @@ def model_fit(X_train, Y_train):
     model.add(keras.layers.Dense(128, activation='relu'))
     model.add(keras.layers.Dense(13, activation='softmax'))
 
-    model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer='adam', loss=keras.losses.sparse_categorical_crossentropy, metrics=['accuracy'])
 
     model.fit(X_train, Y_train, epochs=10)
 
     model.save('visionmath.model')
     model.summary()
+
+
+def model_evaluate():
+    # returns the accuracy of the model
+    global model
+
+    X_test = np.load(images_path + 'dataset1/validation_data/x_test.npy')
+    Y_test = np.load(images_path + 'dataset1/validation_data/y_test.npy')
+
+    total = X_test.shape[0]
+    correct = 0
+    cont = 0
+
+    for i in range(total):
+        if Y_test[i] == classify_input_model(X_test[i, :, :]):
+            correct += 1
+
+        cont += 1
+
+    return (correct / total) * 100
 
 
 # Generate the train data from the moreData_X images
@@ -179,3 +229,6 @@ def model_fit(X_train, Y_train):
 
 # LOAD THE MODEL DATA
 load_model()
+
+# Evaluate the model
+# print(model_evaluate())
