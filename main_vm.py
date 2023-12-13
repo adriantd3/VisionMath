@@ -61,10 +61,10 @@ def binarize_kmeans(image, it):
 
 
 def non_maxima_suppression_contours(contours):
-    n = len(contours)
     res_contours = []
     for (x, y, w, h) in contours:
-        if w < 30:
+        # If the area is tiny, we discard it
+        if (w * h) < 150:
             continue
         res_contours.append((x, y, w, h))
     return res_contours
@@ -82,6 +82,8 @@ def draw_contours_lr_order(binary_image, contours_sorted):
                                   fontScale=2, color=(0, 0, 255), thickness=4)
         image_drawn = cv2.rectangle(image_drawn, (x - 1, y - 1), (x + w, y + h), (0, 255, 0), 3)
         count += 1
+
+    cv2.imwrite('imagentest15.png', image_drawn)
 
     return image_drawn
 
@@ -158,7 +160,7 @@ def identify_div(categories, contours):
             continue
 
         # Array formed by the absolute distances between the symbol and the index number
-        abs_distance_array = np.array([abs((y_index + h_index) - (y + h)) for _, y, _, h in horizontal_cont_list])
+        abs_distance_array = np.array([abs((y_index + h_index) - (y + h/2)) for _, y, _, h in horizontal_cont_list])
         # Calculate the index of the minimum absolute distance in the original contour list
         min_abs_distance = np.where(np.all(contours == horizontal_cont_list[np.argmin(abs_distance_array)], axis=1))[0][
             0]
@@ -310,7 +312,7 @@ def main(imagePath, showImages):
     debug = showImages
 
     try:
-        image = cv2.imread("images/" + imagePath, -1)
+        image = cv2.imread("images/testingImages/" + imagePath, -1)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     except Exception:
         print("Image not Found")
