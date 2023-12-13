@@ -10,7 +10,6 @@ images_path = 'images/datasets/'
 rSize = 28
 cSize = 28
 
-weights_dataset = None
 model = None
 
 
@@ -121,7 +120,7 @@ def classify_input_model(image):
     return np.argmax(category)
 
 
-def generate_model():
+def generate_xy_train():
     num_categories = 13
     X_train = []
     Y_train = []
@@ -146,12 +145,14 @@ def generate_model():
 
     # Normalize data
     X_train = keras.utils.normalize(X_train, axis=1)
-    # Train model
-    model_fit(X_train, Y_train)
+
+    # Save train data
+    np.save(images_path + 'dataset1/x_train.npy', X_train)
+    np.save(images_path + 'dataset1/y_train.npy', Y_train)
 
 
-def generate_y_test(validation_path):
-    file = open(images_path + 'dataset1/validation_data/' + validation_path, 'r')
+def generate_y_test():
+    file = open(images_path + 'dataset1/validation_data/validation_classification.txt', 'r')
     lines = file.readlines()
 
     Y_test = []
@@ -182,9 +183,24 @@ def generate_x_test():
     np.save(images_path + 'dataset1/validation_data/x_test.npy', X_test)
 
 
-def model_fit(X_train, Y_train):
+def load_train_data():
+    x_train = np.load(images_path + 'dataset1/x_train.npy')
+    y_train = np.load(images_path + 'dataset1/y_train.npy')
+
+    return x_train, y_train
+
+
+def load_test_data():
+    x_test = np.load(images_path + 'dataset1/validation_data/x_test.npy')
+    y_test = np.load(images_path + 'dataset1/validation_data/y_test.npy')
+
+    return x_test, y_test
+
+
+def model_fit():
     global model
 
+    x_train, y_train = load_train_data()
     model = keras.models.Sequential()
 
     model.add(keras.layers.Flatten(input_shape=(rSize, cSize)))
@@ -194,7 +210,7 @@ def model_fit(X_train, Y_train):
 
     model.compile(optimizer='adam', loss=keras.losses.sparse_categorical_crossentropy, metrics=['accuracy'])
 
-    model.fit(X_train, Y_train, epochs=10)
+    model.fit(x_train, y_train, epochs=10)
 
     model.save('visionmath.model')
     model.summary()
@@ -203,16 +219,14 @@ def model_fit(X_train, Y_train):
 def model_evaluate():
     # returns the accuracy of the model
     global model
+    x_test, y_test = load_test_data()
 
-    X_test = np.load(images_path + 'dataset1/validation_data/x_test.npy')
-    Y_test = np.load(images_path + 'dataset1/validation_data/y_test.npy')
-
-    total = X_test.shape[0]
+    total = x_test.shape[0]
     correct = 0
     cont = 0
 
     for i in range(total):
-        if Y_test[i] == classify_input_model(X_test[i, :, :]):
+        if y_test[i] == classify_input_model(x_test[i, :, :]):
             correct += 1
 
         cont += 1
@@ -220,15 +234,18 @@ def model_evaluate():
     return (correct / total) * 100
 
 
-# Generate the train data from the moreData_X images
+# Generate the dataset from the moreData_X images
 # for i in range(13):
 # generateData(i)
 
 # Generate the model
-# generate_model()
+# generate_xy_train()
+# model_fit()
 
 # LOAD THE MODEL DATA
 load_model()
 
 # Evaluate the model
+# generate_x_test()
+# generate_y_test()
 # print(model_evaluate())
