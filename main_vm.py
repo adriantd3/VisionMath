@@ -83,8 +83,6 @@ def draw_contours_lr_order(binary_image, contours_sorted):
         image_drawn = cv2.rectangle(image_drawn, (x - 1, y - 1), (x + w, y + h), (0, 255, 0), 3)
         count += 1
 
-    cv2.imwrite('imagentest15.png', image_drawn)
-
     return image_drawn
 
 
